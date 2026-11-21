@@ -1,48 +1,88 @@
 {{define "content"}}
-<h1><a href="/jobs/{{.Run.JobID}}">{{.Run.JobName}}</a>, {{when .Run.Started}}{{if .Run.Dry}} <span class="muted">simulação</span>{{end}}</h1>
-{{template "live" .}}
+<section class="card" id="run">
+  {{template "live" .}}
+</section>
+<script src="/static/pixelbar.js"></script>
 <script>
-  // Atualiza o bloco ao vivo enquanto a execução roda.
-  const t = setInterval(async () => {
-    const el = document.getElementById('live');
-    if (!el || el.dataset.running !== '1') return clearInterval(t);
-    const r = await fetch(location.pathname + '/live');
-    if (r.ok) el.outerHTML = await r.text();
-  }, 2000);
+// Atualiza cabeçalho, números e barra enquanto a execução roda.
+(() => {
+  const card = document.getElementById('run');
+  const canvas = document.createElement('canvas');
+  canvas.className = 'pixelbar';
+  const bar = new PixelBar(canvas);
+  function place() {
+    const live = document.getElementById('live');
+    live.querySelector('.slot').replaceWith(canvas);
+    const d = live.dataset, color = d.status === 'error' ? '#ef4444' : d.status === 'ok' ? '#22c55e' : '#3b82f6';
+    bar.set([{ name: 'run', bytes: +d.bytes, color }], Math.max(+d.total, +d.bytes, 1));
+    return d.running === '1';
+  }
+  let running = place();
+  async function tick() {
+    if (!running) return;
+    try {
+      const r = await fetch(location.pathname + '/live');
+      if (r.ok) {
+        const tpl = document.createElement('template');
+        tpl.innerHTML = await r.text();
+        card.replaceChildren(...tpl.content.childNodes);
+        running = place();
+      }
+    } catch (e) { /* tenta de novo no próximo ciclo */ }
+    if (running) setTimeout(tick, 2000);
+  }
+  if (running) setTimeout(tick, 2000);
+})();
 </script>
 {{end}}
 
 {{define "live"}}
-{{$r := .Run}}
-<section id="live" data-running="{{if eq $r.Status "running"}}1{{end}}">
-  <p><span class="st st-{{$r.Status}}">{{status $r.Status}}</span> <span class="muted">{{dur $r.Started $r.Finished}}</span></p>
-  {{if $r.Msg}}<p class="error" role="alert">{{$r.Msg}}</p>{{end}}
+{{$r := .Run}}{{$l := .Live}}
+<div id="live" data-status="{{$r.Status}}" data-running="{{if eq $r.Status "running"}}1{{end}}"
+  data-bytes="{{if $l}}{{$l.Bytes}}{{else}}{{$r.Bytes}}{{end}}" data-total="{{if $l}}{{$l.TotalBytes}}{{else}}{{$r.Bytes}}{{end}}">
+  <div class="card-head">
+    <div>
+      <p class="big">{{if $l}}{{bytes $l.Bytes}} <span class="of">de {{bytes $l.TotalBytes}} enviados</span>{{else}}{{bytes $r.Bytes}} <span class="of">{{if $r.Dry}}a enviar{{else}}enviados{{end}}</span>{{end}}</p>
+      <p class="sub">
+        {{template "status" $r.Status}}
+        <b>{{status $r.Status}}</b>
+        <a href="/jobs/{{$r.JobID}}">{{$r.JobName}}</a>
+        <span class="dim">{{when $r.Started}}, {{dur $r.Started $r.Finished}}</span>
+        {{if $r.Dry}}<span class="tag">simulação</span>{{end}}
+      </p>
+    </div>
+    <a href="/jobs/{{$r.JobID}}" class="link">{{template "icon" "back"}}Job</a>
+  </div>
 
-  {{with .Live}}
-  <progress value="{{pct .Bytes .TotalBytes}}" max="100"></progress>
-  <dl>
-    <dt>Enviado</dt><dd>{{bytes .Bytes}} de {{bytes .TotalBytes}}</dd>
-    <dt>Velocidade</dt><dd>{{rate .Speed}}</dd>
-    <dt>Arquivos</dt><dd>{{.Transfers}} de {{.TotalTransfers}}</dd>
-    <dt>Verificados</dt><dd>{{.Checks}} de {{.TotalChecks}}</dd>
-    <dt>Apagados</dt><dd>{{.Deletes}}</dd>
-    <dt>Erros</dt><dd>{{.Errors}}</dd>
-  </dl>
-  {{if .LastError}}<p class="error">{{.LastError}}</p>{{end}}
-  {{if .Transferring}}
-  <ul class="files">{{range .Transferring}}<li><span>{{.Name}}</span> <span class="num">{{.Percentage}}%</span></li>{{end}}</ul>
-  {{end}}
+  <span class="slot"></span>
+
+  <ul class="legend stats">
+  {{if $l}}
+    <li><span class="nm">Arquivos</span><span class="val">{{$l.Transfers}} de {{$l.TotalTransfers}}</span></li>
+    <li><span class="nm">Verificados</span><span class="val">{{$l.Checks}} de {{$l.TotalChecks}}</span></li>
+    <li><span class="nm">Velocidade</span><span class="val">{{rate $l.Speed}}</span></li>
+    <li><span class="nm">Apagados</span><span class="val">{{$l.Deletes}}</span></li>
+    <li><span class="nm">Erros</span><span class="val">{{$l.Errors}}</span></li>
   {{else}}
-  <dl>
-    <dt>Volume</dt><dd>{{bytes $r.Bytes}}</dd>
-    <dt>Arquivos</dt><dd>{{$r.Files}}</dd>
-    <dt>Apagados</dt><dd>{{$r.Deletes}}</dd>
-    <dt>Erros</dt><dd>{{$r.Errors}}</dd>
-  </dl>
+    <li><span class="nm">Arquivos</span><span class="val">{{$r.Files}}</span></li>
+    <li><span class="nm">Apagados</span><span class="val">{{$r.Deletes}}</span></li>
+    <li><span class="nm">Erros</span><span class="val">{{$r.Errors}}</span></li>
   {{end}}
+  </ul>
 
-  {{if eq $r.Status "running"}}
-  <form method="post" action="/runs/{{$r.ID}}/stop"><button class="danger">Parar</button></form>
-  {{end}}
-</section>
+  {{if $l}}{{if $l.Transferring}}
+  <ul class="files">{{range $l.Transferring}}<li><code>{{.Name}}</code><span class="val">{{.Percentage}}%</span></li>{{end}}</ul>
+  {{end}}{{end}}
+
+  <div class="card-foot">
+    {{if eq $r.Status "running"}}
+      <span class="ico run spin">{{template "icon" "refresh"}}</span><span class="dim">{{if $l}}{{with $l.LastError}}{{.}}{{else}}Rodando{{end}}{{else}}Começando{{end}}</span>
+      <form method="post" action="/runs/{{$r.ID}}/stop"><button class="btn danger">{{template "icon" "stop"}}Parar</button></form>
+    {{else if $r.Msg}}
+      <span class="ico bad">{{template "icon" "x"}}</span><span class="err">{{$r.Msg}}</span>
+    {{else}}
+      <span class="ico ok">{{template "icon" "check"}}</span><span>{{if $r.Dry}}Simulação concluída. Nada foi alterado.{{else}}Concluído sem erros.{{end}}</span>
+    {{end}}
+  </div>
+</div>
 {{end}}

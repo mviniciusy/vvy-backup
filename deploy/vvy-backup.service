@@ -8,6 +8,15 @@ EnvironmentFile=/etc/vvy-backup.env
 ExecStart=/usr/local/bin/vvy-backup -addr :8080 -db /var/lib/vvy-backup/vvy-backup.db -drive-base "${DRIVE_BASE}"
 StateDirectory=vvy-backup
 Restart=on-failure
+# O app só lê as origens e grava o próprio banco; quem copia é o rclone rcd.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/lib/vvy-backup
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
 
 [Install]
 WantedBy=multi-user.target

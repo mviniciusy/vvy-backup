@@ -2,10 +2,12 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -20,13 +22,22 @@ func (r *RC) Call(path string, in, out any) error {
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequest("POST", r.URL+"/"+path, bytes.NewReader(b))
+	// Chamadas de controle respondem rápido; medir pastas (size/about/list) pode levar minutos.
+	timeout := 30 * time.Second
+	if strings.HasPrefix(path, "operations/") {
+		m, _ := in.(map[string]any)
+		if async, _ := m["_async"].(bool); !async {
+			timeout = 10 * time.Minute
+		}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, "POST", r.URL+"/"+path, bytes.NewReader(b))
 	if err != nil {
 		return err
 	}
 	req.SetBasicAuth(r.User, r.Pass)
 	req.Header.Set("Content-Type", "application/json")
-	r.c.Timeout = 10 * time.Minute // operations/size em pastas grandes demora
 	resp, err := r.c.Do(req)
 	if err != nil {
 		return fmt.Errorf("rclone indisponível: %w", err)

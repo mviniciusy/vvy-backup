@@ -52,15 +52,17 @@ var funcs = template.FuncMap{
 	"status": func(s string) string {
 		return map[string]string{"ok": "OK", "error": "Falhou", "running": "Rodando"}[s]
 	},
-	"bars": bars,
-	"rate": func(v float64) string { return humanBytes(int64(v)) + "/s" },
-	"list": func(s ...string) []string { return s },
-	"seg":  segStyle,
-	"dot":  dotStyle,
-	"sub":  func(a, b int64) int64 { return a - b },
+	"bars":  bars,
+	"rate":  func(v float64) string { return humanBytes(int64(v)) + "/s" },
+	"list":  func(s ...string) []string { return s },
+	"human": humanSchedule,
+	"sub":   func(a, b int64) int64 { return a - b },
 }
 
 func humanBytes(n int64) string {
+	if n < 0 {
+		return "-" + humanBytes(-n)
+	}
 	f := float64(n)
 	for _, u := range []string{"B", "KB", "MB", "GB", "TB"} {
 		if f < 1024 || u == "TB" {
@@ -80,11 +82,8 @@ type bar struct {
 	Text  string
 }
 
-// bars desenha um gráfico de barras em SVG, rotulando só o maior valor.
+// bars desenha colunas em grade de pixels (CSS), rotulando só o maior valor.
 func bars(bs []bar) template.HTML {
-	if len(bs) == 0 {
-		return ""
-	}
 	var max float64
 	maxI := 0
 	for i, b := range bs {
@@ -95,27 +94,39 @@ func bars(bs []bar) template.HTML {
 	if max == 0 {
 		return ""
 	}
-	const h, w = 80.0, 12.0
 	var sb strings.Builder
-	fmt.Fprintf(&sb, `<svg class="chart" viewBox="0 0 %.0f %.0f" preserveAspectRatio="none" role="img">`, float64(len(bs))*w, h+14)
-	fmt.Fprintf(&sb, `<line x1="0" y1="%.0f" x2="%.0f" y2="%.0f" class="base"/>`, h, float64(len(bs))*w, h)
-	for i, b := range bs {
-		bh := 0.0
-		if max > 0 {
-			bh = b.V / max * h
-		}
-		fmt.Fprintf(&sb, `<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f"><title>%s: %s</title></rect>`,
-			float64(i)*w+2, h-bh, w-4, bh, template.HTMLEscapeString(b.Label), template.HTMLEscapeString(b.Text))
+	sb.WriteString(`<div class="cols" role="img">`)
+	for _, b := range bs {
+		fmt.Fprintf(&sb, `<span style="height:%.1f%%" title="%s: %s"></span>`, b.V/max*100,
+			template.HTMLEscapeString(b.Label), template.HTMLEscapeString(b.Text))
 	}
-	if max > 0 {
-		fmt.Fprintf(&sb, `<text x="%.1f" y="%.0f">%s</text>`, float64(maxI)*w+w/2, h+12, template.HTMLEscapeString(bs[maxI].Text))
-	}
-	sb.WriteString(`</svg>`)
+	fmt.Fprintf(&sb, `</div><div class="cols-foot"><span>%s</span><span>máx. %s em %s</span><span>%s</span></div>`,
+		template.HTMLEscapeString(bs[0].Label), template.HTMLEscapeString(bs[maxI].Text),
+		template.HTMLEscapeString(bs[maxI].Label), template.HTMLEscapeString(bs[len(bs)-1].Label))
 	return template.HTML(sb.String())
+}
+
+// sameOrigin barra POST vindo de outros sites (CSRF): o navegador reenvia o basic auth sozinho.
+// Pedidos sem Origin nem Sec-Fetch-Site (curl, bm-run) passam.
+func sameOrigin(r *http.Request) bool {
+	if r.Method != http.MethodPost {
+		return true
+	}
+	if site := r.Header.Get("Sec-Fetch-Site"); site != "" {
+		return site == "same-origin" || site == "none"
+	}
+	if o := r.Header.Get("Origin"); o != "" {
+		return o == "http://"+r.Host || o == "https://"+r.Host
+	}
+	return true
 }
 
 func basicAuth(user, pass string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !sameOrigin(r) {
+			http.Error(w, "Pedido de outro site recusado.", http.StatusForbidden)
+			return
+		}
 		u, p, ok := r.BasicAuth()
 		if !ok || subtle.ConstantTimeCompare([]byte(u), []byte(user)) != 1 ||
 			subtle.ConstantTimeCompare([]byte(p), []byte(pass)) != 1 {
@@ -144,10 +155,16 @@ func (a *App) routes() http.Handler {
 	m.HandleFunc("POST /runs/{id}/stop", a.stopRun)
 	m.HandleFunc("POST /api/report", a.report)
 	m.HandleFunc("GET /dirs", a.dirs)
+	m.HandleFunc("GET /api/drive", a.driveJSON)
+	m.HandleFunc("GET /api/disks", a.disksJSON)
+	m.HandleFunc("GET /api/running", a.runningJSON)
 	m.HandleFunc("POST /drive/refresh", func(w http.ResponseWriter, r *http.Request) {
-		go a.refreshDrive()
-		time.Sleep(300 * time.Millisecond)
-		http.Redirect(w, r, "/", http.StatusSeeOther)
+		if f := r.URL.Query().Get("folder"); f != "" {
+			a.refreshFolder(f) // síncrono: a página espera o novo tamanho
+		} else {
+			go func() { a.refreshDrive(); a.refreshDisks() }()
+		}
+		w.WriteHeader(http.StatusNoContent)
 	})
 	return m
 }
@@ -205,7 +222,7 @@ func (a *App) report(w http.ResponseWriter, r *http.Request) {
 	started, err1 := strconv.ParseInt(f("started"), 10, 64)
 	finished, err2 := strconv.ParseInt(f("finished"), 10, 64)
 	code, err3 := strconv.Atoi(f("code"))
-	if err1 != nil || err2 != nil || err3 != nil {
+	if err1 != nil || err2 != nil || err3 != nil || code < 0 || code > 255 || started <= 0 || finished < started {
 		http.Error(w, "started, finished e code são obrigatórios", http.StatusBadRequest)
 		return
 	}
@@ -234,7 +251,7 @@ func render(w http.ResponseWriter, page, name string, data any) {
 
 func fail(w http.ResponseWriter, err error) {
 	log.Print(err)
-	http.Error(w, err.Error(), http.StatusInternalServerError)
+	http.Error(w, "Erro interno. Veja o log do serviço (journalctl -u vvy-backup).", http.StatusInternalServerError)
 }
 
 func pathID(r *http.Request) int64 {
@@ -315,35 +332,39 @@ func (a *App) painel(w http.ResponseWriter, r *http.Request) {
 		rows = append(rows, x)
 	}
 
-	// Volume enviado por dia, últimos 30 dias.
-	since := time.Now().AddDate(0, 0, -29)
-	since = time.Date(since.Year(), since.Month(), since.Day(), 0, 0, 0, 0, time.Local)
-	perDay := map[string]int64{}
-	rs, err := a.runs(`WHERE r.dry=0 AND r.started>=?`, since.Unix())
+	running := a.currentRun()
+	heat, heatDays, err := a.heatmap(jobs, 30)
 	if err != nil {
 		fail(w, err)
 		return
 	}
-	for _, x := range rs {
-		perDay[time.Unix(x.Started, 0).Format("02/01")] += x.Bytes
-	}
-	var chart []bar
-	for d := since; d.Before(time.Now()); d = d.AddDate(0, 0, 1) {
-		k := d.Format("02/01")
-		chart = append(chart, bar{k, float64(perDay[k]), humanBytes(perDay[k])})
-	}
-
-	a.mu.Lock()
-	running := a.running
-	a.mu.Unlock()
+	a.dmu.Lock()
+	disks := a.disks
+	a.dmu.Unlock()
 	var trashJob *Job
 	for i := range jobs {
 		if jobs[i].Kind == "clean" {
 			trashJob = &jobs[i]
 		}
 	}
-	render(w, "painel", "layout", map[string]any{"Rows": rows, "Chart": chart, "Running": running,
-		"Drive": a.drive(), "TrashJob": trashJob})
+	plan := upcomingDays(jobs, 7)
+	next := ""
+	for _, d := range plan {
+		if len(d.Items) > 0 {
+			it := d.Items[0]
+			next = it.At.Format("15:04") + "|" + it.Job.Name + ", " + strings.ToLower(d.Label)
+			break
+		}
+	}
+	drv := a.drive()
+	ss, labels := a.volumeSeries(jobs, 30)
+	now := time.Now()
+	render(w, "painel", "layout", map[string]any{"Rows": rows, "Running": running, "Nav": a.nav(0), "Crumb": "Painel",
+		"Month": months[now.Month()-1], "Year": now.Year(), "KPIs": a.kpis(a.lastDrive(), next),
+		"Lines": lineChart(ss, labels), "Series": ss,
+		"Cfg": map[string]any{"drive": drv, "disks": disks, "running": running, "base": a.base,
+			"trashJob": trashID(trashJob), "trashAge": trashAge(trashJob)},
+		"Heat": heat, "HeatDays": heatDays, "Plan": plan, "Health": a.health(jobs), "Growth": a.growth()})
 }
 
 func (a *App) jobPage(w http.ResponseWriter, r *http.Request) {
@@ -376,8 +397,51 @@ func (a *App) jobPage(w http.ResponseWriter, r *http.Request) {
 	}
 	render(w, "job", "layout", map[string]any{
 		"Job": j, "Runs": hist, "Vol": vol, "Dur": dur, "Next": a.next(j), "Err": r.URL.Query().Get("err"),
+		"Nav": a.nav(j.ID), "Crumb": "Jobs",
 		"S": parseSchedule(j.Schedule),
 	})
+}
+
+var weekdays = []string{"domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"}
+
+// humanSchedule escreve a agenda em português ("Toda segunda às 03:00").
+func humanSchedule(s string) string {
+	p := parseSchedule(s)
+	switch p.Freq {
+	case "none":
+		return "Sem agenda"
+	case "daily":
+		return "Todo dia às " + p.Time
+	case "weekly":
+		d, _ := strconv.Atoi(p.Dow)
+		if d < 0 || d >= len(weekdays) {
+			return "Cron " + s
+		}
+		if d == 0 || d == 6 {
+			return "Todo " + weekdays[d] + " às " + p.Time
+		}
+		return "Toda " + weekdays[d] + " às " + p.Time
+	case "monthly":
+		return "Todo dia " + p.Dom + " às " + p.Time
+	}
+	return "Cron " + s
+}
+
+func trashID(j *Job) int64 {
+	if j == nil {
+		return 0
+	}
+	return j.ID
+}
+
+func trashAge(j *Job) string {
+	if j == nil {
+		return ""
+	}
+	if n, err := trashDays(j.MinAge); err == nil {
+		return fmt.Sprintf("%d dias", n)
+	}
+	return j.MinAge
 }
 
 // Agenda amigável <-> cron. Só os formatos que o formulário gera; o resto vira "custom".
@@ -392,10 +456,12 @@ func parseSchedule(s string) sched {
 	if len(f) == 5 && f[3] == "*" {
 		m, ok1 := num(f[0])
 		h, ok2 := num(f[1])
-		if ok1 && ok2 {
+		if ok1 && ok2 && m >= 0 && m <= 59 && h >= 0 && h <= 23 {
 			t := fmt.Sprintf("%02d:%02d", h, m)
-			_, dowOK := num(f[4])
-			_, domOK := num(f[2])
+			dow, dowOK := num(f[4])
+			dom, domOK := num(f[2])
+			dowOK = dowOK && dow >= 0 && dow <= 6
+			domOK = domOK && dom >= 1 && dom <= 28
 			switch {
 			case f[2] == "*" && f[4] == "*":
 				return sched{Freq: "daily", Time: t}
@@ -415,6 +481,9 @@ func buildSchedule(freq, dow, dom, hhmm, raw string) (string, error) {
 	}
 	if freq == "custom" {
 		raw = strings.TrimSpace(raw)
+		if len(strings.Fields(raw)) != 5 { // recusa @every e afins, que podem disparar a cada segundo
+			return "", fmt.Errorf("use 5 campos: minuto hora dia mês dia-da-semana")
+		}
 		_, err := cron.ParseStandard(raw)
 		return raw, err
 	}
@@ -469,9 +538,19 @@ func (a *App) saveJob(w http.ResponseWriter, r *http.Request) {
 	case (j.Kind == "sync" || j.Kind == "copy") && j.Src == "":
 		back("Origem é obrigatória.")
 		return
-	case j.Kind == "clean" && j.MinAge == "":
-		back("Idade mínima é obrigatória para limpar a lixeira.")
-		return
+	}
+	if j.Kind == "clean" {
+		if _, err := trashDays(j.MinAge); err != nil {
+			back("Idade mínima inválida: " + err.Error() + ".")
+			return
+		}
+		j.Excludes = "" // exclusões não se aplicam à limpeza
+	}
+	if j.Transfers < 1 {
+		j.Transfers = 4
+	}
+	if j.Checkers < 1 {
+		j.Checkers = 8
 	}
 	var err error
 	if j.Schedule, err = buildSchedule(f("freq"), f("dow"), f("dom"), f("time"), f("schedule")); err != nil {
@@ -548,6 +627,7 @@ func (a *App) runPage(w http.ResponseWriter, r *http.Request) {
 		render(w, "run", "live", data)
 		return
 	}
+	data["Nav"], data["Crumb"] = a.nav(rs[0].JobID), "Execução"
 	render(w, "run", "layout", data)
 }
 

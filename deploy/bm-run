@@ -4,9 +4,16 @@
 # Se o vvy-backup estiver fora do ar, só avisa no log: o backup nunca depende dele.
 # Credenciais em /root/.config/vvy-backup.env (BM_URL, BM_USER, BM_PASS).
 
+if [ $# -lt 2 ]; then
+    echo "uso: bm-run \"Nome do job\" comando [args...]" >&2
+    exit 2
+fi
+
 name=$1; shift
 out=$(mktemp)
+trap 'rm -f "$out"' EXIT
 start=$(date +%s)
+# ponytail: guarda a saída inteira só para pegar as 3 últimas linhas; o arquivo some no fim.
 "$@" 2>&1 | tee "$out"
 code=${PIPESTATUS[0]}
 end=$(date +%s)
@@ -15,12 +22,13 @@ msg=""
 if [ "$code" -ne 0 ]; then
     msg="Saiu com código $code: $(tail -n 3 "$out" | sed 's/\x1b\[[0-9;]*m//g' | tr '\n' ' ')"
 fi
-rm -f "$out"
 
 if . /root/.config/vvy-backup.env 2>/dev/null; then
-    curl -sf -m 10 -o /dev/null -u "$BM_USER:$BM_PASS" "$BM_URL/api/report" \
-        --data-urlencode "name=$name" -d "started=$start" -d "finished=$end" -d "code=$code" \
-        --data-urlencode "msg=$msg" \
+    # A senha vai pelo stdin do curl (-K -), não pela linha de comando, que aparece no ps.
+    printf 'user = "%s:%s"\n' "${BM_USER//\"/\\\"}" "${BM_PASS//\"/\\\"}" |
+        curl -sf -m 10 -o /dev/null -K - "$BM_URL/api/report" \
+            --data-urlencode "name=$name" -d "started=$start" -d "finished=$end" -d "code=$code" \
+            --data-urlencode "msg=$msg" \
         || echo "bm-run: não foi possível avisar o vvy-backup ($BM_URL)" >&2
 fi
 exit "$code"

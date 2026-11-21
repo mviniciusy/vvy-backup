@@ -1,63 +1,118 @@
 {{define "content"}}
-{{$d := .Drive}}
-<section class="card">
+<h1 class="title">{{.Month}} <span class="dim">{{.Year}}</span></h1>
+<div class="dash">
+<div class="span-12 kpis">
+  {{range .KPIs}}
+  <section class="card kpi">
+    <p class="kpi-label">{{.Label}}</p>
+    <p class="kpi-value">{{.Value}}</p>
+    {{if .HasDelta}}<p class="kpi-delta {{if .Good}}good{{else}}bad{{end}}">{{.Delta}}</p>{{end}}
+  </section>
+  {{end}}
+</div>
+<section class="span-12 health {{if .Health}}has-issues{{end}}">
+  {{range .Health}}
+  <p class="issue {{.Level}}">
+    <span class="ico {{if eq .Level "bad"}}bad{{else}}run{{end}}">{{template "icon" (or (and (eq .Level "bad") "x") "clock")}}</span>
+    <span>{{.Text}}</span>
+    {{if .Link}}<a href="{{.Link}}" class="link">Ver</a>{{end}}
+  </p>
+  {{else}}
+  <p class="issue"><span class="ico ok">{{template "icon" "check"}}</span><span>Tudo em dia. Drive responde, HDs montados e nenhum job atrasado.</span></p>
+  {{end}}
+</section>
+
+<section class="card span-12" id="running" hidden>
   <div class="card-head">
     <div>
-      {{if $d.Used}}
-      <p class="big">{{bytes $d.Used}} <span class="muted">de {{bytes $d.Total}} usados</span></p>
-      <p class="muted sm">{{bytes (sub $d.Total $d.Used)}} livres</p>
-      {{else}}
-      <p class="big">Google Drive</p>
-      <p class="muted sm">{{if $d.Busy}}Medindo as pastas…{{else if $d.Err}}{{$d.Err}}{{end}}</p>
-      {{end}}
+      <p class="big"><span id="r-bytes">—</span> <span class="of" id="r-of"></span></p>
+      <p class="sub"><span class="ico run spin">{{template "icon" "refresh"}}</span><b id="r-job"></b><code id="r-file"></code></p>
     </div>
-    <form method="post" action="/drive/refresh">
-      <button class="ghost" {{if $d.Busy}}disabled{{end}}>{{if $d.Busy}}Medindo…{{else}}Atualizar{{end}}</button>
-    </form>
+    <a class="link" id="r-link">Abrir</a>
   </div>
-
-  {{if $d.Parts}}
-  <div class="bar">
-    {{range $d.Parts}}<span class="seg" style="{{seg .Color .Pct}}" title="{{.Name}}: {{bytes .Bytes}}"></span>{{end}}
-  </div>
-  <ul class="legend">
-    {{range $d.Parts}}<li><i style="{{dot .Color}}"></i><span>{{.Name}}</span><span class="num muted">{{bytes .Bytes}}</span></li>{{end}}
-  </ul>
-  {{end}}
-
-  {{if and $d.Trash .TrashJob}}
-  <div class="card-foot">
-    <span>Lixeira usa {{bytes $d.Trash}}. Arquivos com mais de {{.TrashJob.MinAge}} saem na próxima limpeza.</span>
-    <form method="post" action="/jobs/{{.TrashJob.ID}}/run"><button class="ghost">Limpar agora</button></form>
-  </div>
-  {{end}}
+  <canvas class="pixelbar" id="r-bar"></canvas>
 </section>
 
-{{if .Running}}<p class="notice"><a href="/runs/{{.Running}}">Execução em andamento</a></p>{{end}}
-
-<section class="card flush">
-  <table>
-    <thead><tr><th>Job</th><th>Status</th><th>Última</th><th>Próxima</th><th class="num">Volume</th></tr></thead>
-    <tbody>
-    {{range .Rows}}
-    <tr>
-      <td><a href="/jobs/{{.Job.ID}}" class="strong">{{.Job.Name}}</a></td>
-      {{with .Last}}
-      <td><a href="/runs/{{.ID}}" class="st st-{{.Status}}">{{status .Status}}</a></td>
-      <td class="muted">{{when .Started}}</td>
-      {{else}}<td class="muted">—</td><td class="muted">—</td>{{end}}
-      <td class="muted">{{if .Job.Paused}}Pausado{{else}}{{when .Next}}{{end}}</td>
-      <td class="num muted">{{if eq .Job.Kind "host"}}—{{else}}{{with .Last}}{{bytes .Bytes}}{{else}}—{{end}}{{end}}</td>
-    </tr>
-    {{end}}
-    </tbody>
-  </table>
+<section class="card span-7 w-drive">
+  <div class="card-head">
+    <div>
+      <p class="big"><span id="used">—</span> <span class="of" id="of"></span></p>
+      <p class="sub" id="sub"></p>
+    </div>
+    <button type="button" class="link" id="rescan">{{template "icon" "refresh"}}Atualizar</button>
+  </div>
+  <canvas class="pixelbar" id="bar"></canvas>
+  <ul class="legend" id="legend"></ul>
+  <div class="card-foot" id="foot"></div>
 </section>
 
-{{with bars .Chart}}
-<section class="card">
-  <h2>Volume, 30 dias</h2>
+<section class="card span-5 w-disks" id="disks-card">
+  <div class="card-head"><h2>HDs locais</h2></div>
+  <div id="disks"></div>
+</section>
+
+<section class="card span-12 w-growth">
+  <div class="card-head"><h2>Tamanho do backup no Drive</h2></div>
+  {{if gt (len .Growth.Chart) 1}}{{bars .Growth.Chart}}{{end}}
+  <div class="card-foot"><span class="ico dim">{{template "icon" "clock"}}</span><span>{{.Growth.Note}}</span></div>
+</section>
+
+
+
+{{with .Lines}}
+<section class="card span-12">
+  <div class="card-head">
+    <h2>Volume enviado, 30 dias</h2>
+    <ul class="series">{{range $.Series}}<li><span class="dot" style="--c: {{.Color}}"></span>{{.Name}}</li>{{end}}<li><span class="dot" style="--c: #71717a"></span>Arquivos apagados</li></ul>
+  </div>
   {{.}}
 </section>
 {{end}}
+
+<section class="card span-12 w-heat">
+  <div class="card-head"><h2>Execuções, 30 dias</h2><span class="dim sm" id="heat-tip"></span></div>
+  <div class="heat" style="--days: {{len .HeatDays}}">
+    {{range .Heat}}
+    <a href="/jobs/{{.Job.ID}}" class="heat-name">{{.Job.Name}}</a>
+    <div class="heat-row">{{range .Cells}}<span class="hc {{.Class}}" data-tip="{{.Title}}"></span>{{end}}</div>
+    {{end}}
+    <span></span>
+    <div class="heat-axis"><span>{{index .HeatDays 0}}</span><span>hoje</span></div>
+  </div>
+</section>
+
+<section class="card span-12 w-week">
+  <div class="card-head"><h2>Próximos 7 dias</h2></div>
+  <div class="week">
+    {{range .Plan}}
+    <div class="day">
+      <p class="day-label">{{.Label}}</p>
+      {{range .Items}}<a href="/jobs/{{.Job.ID}}" class="slot-item" title="{{.Job.Name}} às {{.At.Format "15:04"}}"><span class="dim">{{.At.Format "15:04"}}</span><span class="slot-name">{{.Job.Name}}</span></a>{{else}}<p class="dim empty">—</p>{{end}}
+    </div>
+    {{end}}
+  </div>
+</section>
+
+
+
+<section class="card span-12">
+  <div class="card-head"><h2>Jobs</h2></div>
+  <ul class="rows">
+  {{range .Rows}}
+    <li><a href="/jobs/{{.Job.ID}}" class="row">
+      {{if .Job.Paused}}<span class="ico dim">{{template "icon" "pause"}}</span>{{else}}{{with .Last}}{{template "status" .Status}}{{else}}{{template "status" ""}}{{end}}{{end}}
+      <span class="nm">{{.Job.Name}}{{if eq .Job.Kind "host"}} <span class="tag">host</span>{{end}}</span>
+      <span class="dim hide-sm">{{if .Job.Paused}}Pausado{{else}}{{human .Job.Schedule}}{{end}}</span>
+      <span class="dim">{{with .Last}}{{when .Started}}{{else}}—{{end}}</span>
+      <span class="val">{{if eq .Job.Kind "host"}}—{{else}}{{with .Last}}{{bytes .Bytes}}{{else}}—{{end}}{{end}}</span>
+    </a></li>
+  {{end}}
+  </ul>
+</section>
+
+</div>
+
+<script id="cfg" type="application/json">{{.Cfg}}</script>
+<script src="/static/pixelbar.js"></script>
+<script src="/static/painel.js"></script>
 {{end}}
