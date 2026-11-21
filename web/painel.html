@@ -1,0 +1,63 @@
+{{define "content"}}
+{{$d := .Drive}}
+<section class="card">
+  <div class="card-head">
+    <div>
+      {{if $d.Used}}
+      <p class="big">{{bytes $d.Used}} <span class="muted">de {{bytes $d.Total}} usados</span></p>
+      <p class="muted sm">{{bytes (sub $d.Total $d.Used)}} livres</p>
+      {{else}}
+      <p class="big">Google Drive</p>
+      <p class="muted sm">{{if $d.Busy}}Medindo as pastas…{{else if $d.Err}}{{$d.Err}}{{end}}</p>
+      {{end}}
+    </div>
+    <form method="post" action="/drive/refresh">
+      <button class="ghost" {{if $d.Busy}}disabled{{end}}>{{if $d.Busy}}Medindo…{{else}}Atualizar{{end}}</button>
+    </form>
+  </div>
+
+  {{if $d.Parts}}
+  <div class="bar">
+    {{range $d.Parts}}<span class="seg" style="{{seg .Color .Pct}}" title="{{.Name}}: {{bytes .Bytes}}"></span>{{end}}
+  </div>
+  <ul class="legend">
+    {{range $d.Parts}}<li><i style="{{dot .Color}}"></i><span>{{.Name}}</span><span class="num muted">{{bytes .Bytes}}</span></li>{{end}}
+  </ul>
+  {{end}}
+
+  {{if and $d.Trash .TrashJob}}
+  <div class="card-foot">
+    <span>Lixeira usa {{bytes $d.Trash}}. Arquivos com mais de {{.TrashJob.MinAge}} saem na próxima limpeza.</span>
+    <form method="post" action="/jobs/{{.TrashJob.ID}}/run"><button class="ghost">Limpar agora</button></form>
+  </div>
+  {{end}}
+</section>
+
+{{if .Running}}<p class="notice"><a href="/runs/{{.Running}}">Execução em andamento</a></p>{{end}}
+
+<section class="card flush">
+  <table>
+    <thead><tr><th>Job</th><th>Status</th><th>Última</th><th>Próxima</th><th class="num">Volume</th></tr></thead>
+    <tbody>
+    {{range .Rows}}
+    <tr>
+      <td><a href="/jobs/{{.Job.ID}}" class="strong">{{.Job.Name}}</a></td>
+      {{with .Last}}
+      <td><a href="/runs/{{.ID}}" class="st st-{{.Status}}">{{status .Status}}</a></td>
+      <td class="muted">{{when .Started}}</td>
+      {{else}}<td class="muted">—</td><td class="muted">—</td>{{end}}
+      <td class="muted">{{if .Job.Paused}}Pausado{{else}}{{when .Next}}{{end}}</td>
+      <td class="num muted">{{if eq .Job.Kind "host"}}—{{else}}{{with .Last}}{{bytes .Bytes}}{{else}}—{{end}}{{end}}</td>
+    </tr>
+    {{end}}
+    </tbody>
+  </table>
+</section>
+
+{{with bars .Chart}}
+<section class="card">
+  <h2>Volume, 30 dias</h2>
+  {{.}}
+</section>
+{{end}}
+{{end}}

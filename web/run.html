@@ -1,0 +1,48 @@
+{{define "content"}}
+<h1><a href="/jobs/{{.Run.JobID}}">{{.Run.JobName}}</a>, {{when .Run.Started}}{{if .Run.Dry}} <span class="muted">simulação</span>{{end}}</h1>
+{{template "live" .}}
+<script>
+  // Atualiza o bloco ao vivo enquanto a execução roda.
+  const t = setInterval(async () => {
+    const el = document.getElementById('live');
+    if (!el || el.dataset.running !== '1') return clearInterval(t);
+    const r = await fetch(location.pathname + '/live');
+    if (r.ok) el.outerHTML = await r.text();
+  }, 2000);
+</script>
+{{end}}
+
+{{define "live"}}
+{{$r := .Run}}
+<section id="live" data-running="{{if eq $r.Status "running"}}1{{end}}">
+  <p><span class="st st-{{$r.Status}}">{{status $r.Status}}</span> <span class="muted">{{dur $r.Started $r.Finished}}</span></p>
+  {{if $r.Msg}}<p class="error" role="alert">{{$r.Msg}}</p>{{end}}
+
+  {{with .Live}}
+  <progress value="{{pct .Bytes .TotalBytes}}" max="100"></progress>
+  <dl>
+    <dt>Enviado</dt><dd>{{bytes .Bytes}} de {{bytes .TotalBytes}}</dd>
+    <dt>Velocidade</dt><dd>{{rate .Speed}}</dd>
+    <dt>Arquivos</dt><dd>{{.Transfers}} de {{.TotalTransfers}}</dd>
+    <dt>Verificados</dt><dd>{{.Checks}} de {{.TotalChecks}}</dd>
+    <dt>Apagados</dt><dd>{{.Deletes}}</dd>
+    <dt>Erros</dt><dd>{{.Errors}}</dd>
+  </dl>
+  {{if .LastError}}<p class="error">{{.LastError}}</p>{{end}}
+  {{if .Transferring}}
+  <ul class="files">{{range .Transferring}}<li><span>{{.Name}}</span> <span class="num">{{.Percentage}}%</span></li>{{end}}</ul>
+  {{end}}
+  {{else}}
+  <dl>
+    <dt>Volume</dt><dd>{{bytes $r.Bytes}}</dd>
+    <dt>Arquivos</dt><dd>{{$r.Files}}</dd>
+    <dt>Apagados</dt><dd>{{$r.Deletes}}</dd>
+    <dt>Erros</dt><dd>{{$r.Errors}}</dd>
+  </dl>
+  {{end}}
+
+  {{if eq $r.Status "running"}}
+  <form method="post" action="/runs/{{$r.ID}}/stop"><button class="danger">Parar</button></form>
+  {{end}}
+</section>
+{{end}}

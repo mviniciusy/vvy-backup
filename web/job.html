@@ -1,0 +1,188 @@
+{{define "content"}}
+{{$j := .Job}}
+<h1>{{if $j.ID}}{{$j.Name}}{{else}}Novo job{{end}}</h1>
+{{if .Err}}<p class="error" role="alert">{{.Err}}</p>{{end}}
+
+{{if and $j.ID (ne $j.Kind "host")}}
+<div class="actions">
+  <form method="post" action="/jobs/{{$j.ID}}/run"><button>Rodar</button></form>
+  <form method="post" action="/jobs/{{$j.ID}}/dry"><button class="secondary">Simular</button></form>
+  <form method="post" action="/jobs/{{$j.ID}}/pause"><button class="secondary">{{if $j.Paused}}Retomar{{else}}Pausar{{end}}</button></form>
+  <span class="muted">{{if $j.Paused}}Pausado{{else if .Next}}Próxima: {{when .Next}}{{end}}</span>
+</div>
+{{end}}
+
+<form method="post" action="/jobs{{if $j.ID}}/{{$j.ID}}{{end}}" class="job">
+  <label for="name">Nome</label>
+  <input id="name" name="name" value="{{$j.Name}}" required>
+
+  <label for="kind">Tipo</label>
+  <select id="kind" name="kind">
+    <option value="sync" {{if eq $j.Kind "sync"}}selected{{end}}>Espelhar</option>
+    <option value="copy" {{if eq $j.Kind "copy"}}selected{{end}}>Copiar sem apagar</option>
+    <option value="clean" {{if eq $j.Kind "clean"}}selected{{end}}>Limpar lixeira</option>
+    <option value="host" {{if eq $j.Kind "host"}}selected{{end}}>Roda no host</option>
+  </select>
+
+  <div class="f files">
+    <label for="src">Origem</label>
+    <input id="src" name="src" value="{{$j.Src}}" placeholder="/mnt/hd1/pasta">
+  </div>
+
+  <div class="f dest">
+    <label for="dst">Destino</label>
+    <input id="dst" name="dst" value="{{$j.Dst}}" placeholder="gdrive:pasta">
+  </div>
+
+  <div class="f files">
+    <label for="trash">Lixeira</label>
+    <input id="trash" name="trash" value="{{$j.Trash}}" placeholder="gdrive:lixeira/nome">
+  </div>
+
+  <div class="f clean">
+    <label for="min_age">Idade mínima</label>
+    <input id="min_age" name="min_age" value="{{$j.MinAge}}" placeholder="14d">
+  </div>
+
+  <div class="f files">
+    <span class="lbl" id="tree-lbl">Pastas</span>
+    <ul class="tree" id="tree" aria-labelledby="tree-lbl"></ul>
+  </div>
+
+  <div class="f files">
+    <label for="excludes">Exclusões</label>
+    <textarea id="excludes" name="excludes" rows="3" placeholder="/vzdump/**">{{$j.Excludes}}</textarea>
+  </div>
+
+  <div class="f files">
+    <label for="mount">Montagem exigida</label>
+    <input id="mount" name="mount" value="{{$j.Mount}}" placeholder="/mnt/hd1">
+  </div>
+
+  {{$s := .S}}
+  <label for="freq">Frequência</label>
+  <select id="freq" name="freq">
+    <option value="daily" {{if eq $s.Freq "daily"}}selected{{end}}>Todo dia</option>
+    <option value="weekly" {{if eq $s.Freq "weekly"}}selected{{end}}>Toda semana</option>
+    <option value="monthly" {{if eq $s.Freq "monthly"}}selected{{end}}>Todo mês</option>
+    <option value="none" {{if eq $s.Freq "none"}}selected{{end}}>Sem agenda</option>
+    <option value="custom" {{if eq $s.Freq "custom"}}selected{{end}}>Personalizada (cron)</option>
+  </select>
+
+  <div class="f s-week">
+    <label for="dow">Dia da semana</label>
+    <select id="dow" name="dow">
+      {{range $i, $d := list "Domingo" "Segunda" "Terça" "Quarta" "Quinta" "Sexta" "Sábado"}}
+      <option value="{{$i}}" {{if eq $s.Dow (print $i)}}selected{{end}}>{{$d}}</option>
+      {{end}}
+    </select>
+  </div>
+
+  <div class="f s-month">
+    <label for="dom">Dia do mês</label>
+    <input id="dom" name="dom" type="number" min="1" max="28" value="{{or $s.Dom "1"}}">
+  </div>
+
+  <div class="f s-time">
+    <label for="time">Horário</label>
+    <input id="time" name="time" type="time" value="{{$s.Time}}">
+  </div>
+
+  <div class="f s-cron">
+    <label for="schedule">Cron</label>
+    <input id="schedule" name="schedule" value="{{$j.Schedule}}" placeholder="0 3 * * 1">
+  </div>
+
+  <div class="pair tune">
+    <div><label for="transfers">Transferências</label>
+    <input id="transfers" name="transfers" type="number" min="1" value="{{$j.Transfers}}"></div>
+    <div><label for="checkers">Verificações</label>
+    <input id="checkers" name="checkers" type="number" min="1" value="{{$j.Checkers}}"></div>
+  </div>
+
+  <button>Salvar</button>
+</form>
+
+<div class="charts">
+  {{with bars .Vol}}<div><h2>Volume</h2>{{.}}</div>{{end}}
+  {{with bars .Dur}}<div><h2>Duração</h2>{{.}}</div>{{end}}
+</div>
+
+{{if .Runs}}
+<h2>Histórico</h2>
+<table>
+  <thead><tr><th>Início</th><th>Status</th><th>Duração</th><th class="num">Volume</th><th class="num">Arquivos</th><th class="num">Apagados</th><th class="num">Erros</th></tr></thead>
+  <tbody>
+  {{range .Runs}}
+  <tr>
+    <td><a href="/runs/{{.ID}}">{{when .Started}}</a>{{if .Dry}} <span class="muted">simulação</span>{{end}}</td>
+    <td class="st st-{{.Status}}">{{status .Status}}</td>
+    <td>{{dur .Started .Finished}}</td>
+    <td class="num">{{bytes .Bytes}}</td>
+    <td class="num">{{.Files}}</td>
+    <td class="num">{{.Deletes}}</td>
+    <td class="num">{{.Errors}}</td>
+  </tr>
+  {{end}}
+  </tbody>
+</table>
+{{end}}
+<script>
+// Árvore de pastas: desmarcar uma pasta adiciona "/caminho/**" às exclusões.
+(() => {
+  const tree = document.getElementById('tree'), ta = document.getElementById('excludes'),
+        src = document.getElementById('src'), kind = document.getElementById('kind');
+  const esc = s => s.replace(/[\*?\[\]{}]/g, '\$&');
+  const rule = rel => esc(rel) + '/**';
+  const rules = () => ta.value.split('\n').map(s => s.trim()).filter(Boolean);
+
+  function refresh() {
+    const r = rules();
+    tree.querySelectorAll('li').forEach(li => {
+      const rel = li.dataset.rel, box = li.querySelector(':scope > label input');
+      const own = r.includes(rule(rel));
+      let anc = false;
+      for (let p = rel.slice(0, rel.lastIndexOf('/')); p; p = p.slice(0, p.lastIndexOf('/')))
+        if (r.includes(rule(p))) { anc = true; break; }
+      box.checked = !own && !anc;
+      box.disabled = anc;
+    });
+  }
+
+  async function load(ul, rel) {
+    if (!src.value.startsWith('/mnt/') || kind.value === 'clean' || kind.value === 'host') { ul.innerHTML = ''; return; }
+    const r = await fetch('/dirs?src=' + encodeURIComponent(src.value) + '&rel=' + encodeURIComponent(rel));
+    ul.innerHTML = r.ok ? await r.text() : '<li class="muted">' + (await r.text()) + '</li>';
+    refresh();
+  }
+
+  tree.addEventListener('click', e => {
+    const b = e.target.closest('button.tg');
+    if (!b) return;
+    const li = b.closest('li'), ul = li.querySelector(':scope > ul'), open = b.getAttribute('aria-expanded') === 'true';
+    b.setAttribute('aria-expanded', !open);
+    b.textContent = open ? '+' : '−';
+    ul.hidden = open;
+    if (!open && !ul.children.length) load(ul, li.dataset.rel);
+  });
+
+  tree.addEventListener('change', e => {
+    const li = e.target.closest('li'), rel = li.dataset.rel, own = rule(rel), below = esc(rel) + '/';
+    let r = rules().filter(x => x !== own && !x.startsWith(below));
+    if (!e.target.checked) r.push(own);
+    ta.value = r.join('\n');
+    refresh();
+  });
+
+  ta.addEventListener('input', refresh);
+  src.addEventListener('change', () => load(tree, ''));
+  kind.addEventListener('change', () => load(tree, ''));
+  load(tree, '');
+})();
+</script>
+{{end}}
+
+{{define "dirs"}}{{range .}}<li data-rel="{{.Rel}}">
+{{- if .Kids}}<button type="button" class="tg" aria-expanded="false" aria-label="Subpastas de {{.Name}}">+</button>{{else}}<span class="tg"></span>{{end -}}
+<label><input type="checkbox" checked> {{.Name}}</label><ul hidden></ul></li>
+{{else}}<li class="muted">Sem subpastas.</li>{{end}}{{end}}

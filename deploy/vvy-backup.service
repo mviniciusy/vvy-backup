@@ -1,0 +1,13 @@
+[Unit]
+Description=vvy-backup
+After=network-online.target rclone-rcd.service
+Wants=network-online.target
+
+[Service]
+EnvironmentFile=/etc/vvy-backup.env
+ExecStart=/usr/local/bin/vvy-backup -addr :8080 -db /var/lib/vvy-backup/vvy-backup.db -drive-base "${DRIVE_BASE}"
+StateDirectory=vvy-backup
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

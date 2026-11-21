@@ -1,0 +1,18 @@
+{{define "layout"}}<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>vvy-backup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+  <a href="/" class="brand">vvy-backup</a>
+  <a href="/jobs/new">Novo job</a>
+</header>
+<main>{{template "content" .}}</main>
+</body>
+</html>{{end}}
