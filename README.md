@@ -1,6 +1,6 @@
 # vvy-backup
 
-Painel web para agendar, executar e monitorar backups feitos com `rclone sync` para o Google Drive.
+Painel web para agendar, executar e monitorar backups feitos com `rclone sync` para o Google Drive, executado no container `CT 105` do [vvy-homelab](https://github.com/mviniciusy/vvy-homelab).
 
 O projeto substitui um conjunto de scripts agendados no cron, que não tinham histórico nem alertas: falhas de
 autenticação no Drive e alterações no crontab só eram percebidas dias depois. O formato do backup não muda.
@@ -74,3 +74,7 @@ A linha do cron passa a chamar o script por meio do `bm-run`:
 No painel, cadastre um job do tipo **Roda no host** com o mesmo nome e defina `BM_URL`, `BM_USER` e `BM_PASS`
 em `/root/.config/vvy-backup.env`. Se o painel estiver indisponível, o script é executado normalmente e o
 `bm-run` registra apenas um aviso no log.
+
+## Repositório relacionado
+
+- [vvy-homelab](https://github.com/mviniciusy/vvy-homelab) — infraestrutura do servidor Proxmox, storage, rede e documentação dos scripts de backup do host ([`docs/backup.md`](https://github.com/mviniciusy/vvy-homelab/blob/main/docs/backup.md)).
