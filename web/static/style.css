@@ -143,11 +143,13 @@ button { font: inherit; cursor: pointer; }
 .pixelbar.slim { height: 76px; margin: -6px 0 12px; }
 
 /* ---------- Legendas e listas: sem vidro, só um fundo leve ---------- */
-.legend { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2px 18px; font-size: var(--t-1); }
+.legend { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(185px, 1fr)); gap: 2px 18px; font-size: var(--t-1); }
 .legend li { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 5px 8px; margin: 0 -8px; border-radius: var(--r-1); cursor: default;
   transition: background-color 150ms ease-out; }
 .legend li.on { background: var(--raised); }
 .legend.stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.swatch { width: 8px; height: 8px; flex: none; border-radius: 2px; background: var(--c, var(--dim)); }
+.swatch.free { background: none; border: 1px solid var(--line-2); }
 .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--soft); }
 .val { color: var(--dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .series { display: flex; flex-wrap: wrap; gap: 6px 16px; list-style: none; margin: 0 0 14px; padding: 0; font-size: var(--t-1); color: var(--dim); }
@@ -168,7 +170,9 @@ button { font: inherit; cursor: pointer; }
 /* ---------- HDs locais ---------- */
 .disk + .disk { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--line); }
 .disk-head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; font-size: var(--t-1); }
-.disk-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.disk-head b { flex: none; }
+.disk-sub { margin-left: auto; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; font-variant-numeric: tabular-nums; }
+#disks .legend { grid-template-columns: 1fr; gap: 2px; }
 
 /* ---------- Próximos 7 dias ---------- */
 .week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }

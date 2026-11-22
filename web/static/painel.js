@@ -133,8 +133,8 @@ function renderDisks(ds) {
       <p class="disk-head"><span class="ico ${d.mounted ? '' : 'bad'}" style="${d.mounted ? 'color:#3b82f6' : ''}">${icon(d.mounted ? 'hdd' : 'x')}</span>
         <b>${esc(d.mount)}</b><span class="dim disk-sub">${d.mounted ? `${fmtBytes(d.used)} de ${fmtBytes(d.total)} usados` : 'Não montado'}</span></p>
       ${d.mounted ? `<canvas class="pixelbar slim"></canvas>
-      <ul class="legend">${(d.parts || []).map((p, i) => `<li data-i="${i}" tabindex="0" title="${esc(p.desc || '')}"><span class="ico" style="color:${p.color}">${icon(p.icon)}</span><span class="nm">${esc(p.name)}</span><span class="val">${fmtBytes(p.bytes)}</span></li>`).join('')}
-        <li class="free"><span class="ico dim">${icon('folder')}</span><span class="nm dim">Livre</span><span class="val">${fmtBytes(d.total - d.used)}</span></li></ul>` : ''}
+      <ul class="legend">${(d.parts || []).map((p, i) => `<li data-i="${i}" tabindex="0" title="${esc(p.desc || '')}"><span class="swatch" style="--c:${esc(p.color)}"></span><span class="nm">${esc(p.name)}</span><span class="val">${fmtBytes(p.bytes)}</span></li>`).join('')}
+        <li class="free"><span class="swatch free"></span><span class="nm dim">Livre</span><span class="val">${fmtBytes(d.total - d.used)}</span></li></ul>` : ''}
       ${d.err ? `<p class="sub err">${esc(d.err)}</p>` : ''}
     </div>`).join('');
   box.querySelectorAll('.disk').forEach(el => {
