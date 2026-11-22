@@ -24,6 +24,20 @@ e `operations/delete`, acompanha o progresso por `core/stats` a cada 2 segundos 
 O executável é um único binário Go, de aproximadamente 14 MB, compilado sem CGO. Além da biblioteca padrão,
 as dependências são `modernc.org/sqlite` e `robfig/cron`. A interface não usa framework JavaScript.
 
+## Telas
+
+**Painel principal — resumo do mês, cota do Google Drive e HDs locais**
+
+![Painel principal com KPIs do mês, barra de cota do Google Drive e HDs locais](imagens/web1.png)
+
+**Mapa de execuções (30 dias), próximos 7 dias e lista de jobs**
+
+![Mapa de execuções de 30 dias, agenda dos próximos 7 dias e lista de jobs](imagens/web3.png)
+
+**Configuração do job e seleção de pastas para exclusão**
+
+![Tela de configuração do job com agenda, origem/destino e árvore de pastas](imagens/web2.png)
+
 ## Requisitos
 
 - Linux com `rclone rcd` em execução e acesso às pastas de origem
