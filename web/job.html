@@ -25,94 +25,92 @@
   {{if .Err}}<p class="sub err" role="alert">{{.Err}}</p>{{end}}
 </section>
 
-<section class="card span-7">
+<section class="card span-12">
   <div class="card-head"><h2>Configuração</h2></div>
-  <form method="post" action="/jobs{{if $j.ID}}/{{$j.ID}}{{end}}" class="job">
-    <label for="name">Nome</label>
-    <input id="name" name="name" value="{{$j.Name}}" required>
-
-    <label for="kind">Tipo</label>
-    <select id="kind" name="kind">
-      <option value="sync" {{if eq $j.Kind "sync"}}selected{{end}}>Espelhar</option>
-      <option value="copy" {{if eq $j.Kind "copy"}}selected{{end}}>Copiar sem apagar</option>
-      <option value="clean" {{if eq $j.Kind "clean"}}selected{{end}}>Limpar lixeira</option>
-      <option value="host" {{if eq $j.Kind "host"}}selected{{end}}>Roda no host</option>
-    </select>
+  <form method="post" action="/jobs{{if $j.ID}}/{{$j.ID}}{{end}}" class="job grid">
+    <div class="f">
+      <label for="name">Nome</label>
+      <input id="name" name="name" value="{{$j.Name}}" required>
+    </div>
+    <div class="f">
+      <label for="kind">Tipo</label>
+      <select id="kind" name="kind">
+        <option value="sync" {{if eq $j.Kind "sync"}}selected{{end}}>Espelhar</option>
+        <option value="copy" {{if eq $j.Kind "copy"}}selected{{end}}>Copiar sem apagar</option>
+        <option value="clean" {{if eq $j.Kind "clean"}}selected{{end}}>Limpar lixeira</option>
+        <option value="host" {{if eq $j.Kind "host"}}selected{{end}}>Roda no host</option>
+      </select>
+    </div>
+    {{$s := .S}}
+    <div class="f">
+      <label for="freq">Frequência</label>
+      <select id="freq" name="freq">
+        <option value="daily" {{if eq $s.Freq "daily"}}selected{{end}}>Todo dia</option>
+        <option value="weekly" {{if eq $s.Freq "weekly"}}selected{{end}}>Toda semana</option>
+        <option value="monthly" {{if eq $s.Freq "monthly"}}selected{{end}}>Todo mês</option>
+        <option value="none" {{if eq $s.Freq "none"}}selected{{end}}>Sem agenda</option>
+        <option value="custom" {{if eq $s.Freq "custom"}}selected{{end}}>Personalizada (cron)</option>
+      </select>
+    </div>
 
     <div class="f files">
       <label for="src">Origem</label>
       <input id="src" name="src" value="{{$j.Src}}" placeholder="/mnt/hd1/pasta">
     </div>
-
     <div class="f dest">
       <label for="dst">Destino</label>
       <input id="dst" name="dst" value="{{$j.Dst}}" placeholder="gdrive:pasta">
     </div>
-
     <div class="f files">
       <label for="trash">Lixeira</label>
       <input id="trash" name="trash" value="{{$j.Trash}}" placeholder="gdrive:lixeira/nome">
     </div>
-
     <div class="f clean">
       <label for="min_age">Idade mínima</label>
       <input id="min_age" name="min_age" value="{{$j.MinAge}}" placeholder="14d">
     </div>
 
-    <div class="f files">
-      <span class="lbl" id="tree-lbl">Pastas</span>
-      <ul class="tree" id="tree" aria-labelledby="tree-lbl"></ul>
+    <div class="f s-week">
+      <label for="dow">Dia da semana</label>
+      <select id="dow" name="dow">
+        {{range $i, $d := list "Domingo" "Segunda" "Terça" "Quarta" "Quinta" "Sexta" "Sábado"}}
+        <option value="{{$i}}" {{if eq $s.Dow (print $i)}}selected{{end}}>{{$d}}</option>
+        {{end}}
+      </select>
     </div>
-
-    <div class="f files">
-      <label for="excludes">Exclusões</label>
-      <textarea id="excludes" name="excludes" rows="3" placeholder="/vzdump/**">{{$j.Excludes}}</textarea>
+    <div class="f s-month">
+      <label for="dom">Dia do mês</label>
+      <input id="dom" name="dom" type="number" min="1" max="28" value="{{or $s.Dom "1"}}">
+    </div>
+    <div class="f s-time">
+      <label for="time">Horário</label>
+      <input id="time" name="time" type="time" value="{{$s.Time}}">
+    </div>
+    <div class="f s-cron">
+      <label for="schedule">Cron</label>
+      <input id="schedule" name="schedule" value="{{$j.Schedule}}" placeholder="0 3 * * 1">
     </div>
 
     <div class="f files">
       <label for="mount">Montagem exigida</label>
       <input id="mount" name="mount" value="{{$j.Mount}}" placeholder="/mnt/hd1">
     </div>
-
-    {{$s := .S}}
-    <label for="freq">Frequência</label>
-    <select id="freq" name="freq">
-      <option value="daily" {{if eq $s.Freq "daily"}}selected{{end}}>Todo dia</option>
-      <option value="weekly" {{if eq $s.Freq "weekly"}}selected{{end}}>Toda semana</option>
-      <option value="monthly" {{if eq $s.Freq "monthly"}}selected{{end}}>Todo mês</option>
-      <option value="none" {{if eq $s.Freq "none"}}selected{{end}}>Sem agenda</option>
-      <option value="custom" {{if eq $s.Freq "custom"}}selected{{end}}>Personalizada (cron)</option>
-    </select>
-
-    <div class="pair">
-      <div class="f s-week">
-        <label for="dow">Dia da semana</label>
-        <select id="dow" name="dow">
-          {{range $i, $d := list "Domingo" "Segunda" "Terça" "Quarta" "Quinta" "Sexta" "Sábado"}}
-          <option value="{{$i}}" {{if eq $s.Dow (print $i)}}selected{{end}}>{{$d}}</option>
-          {{end}}
-        </select>
-      </div>
-      <div class="f s-month">
-        <label for="dom">Dia do mês</label>
-        <input id="dom" name="dom" type="number" min="1" max="28" value="{{or $s.Dom "1"}}">
-      </div>
-      <div class="f s-time">
-        <label for="time">Horário</label>
-        <input id="time" name="time" type="time" value="{{$s.Time}}">
-      </div>
+    <div class="f tune">
+      <label for="transfers">Transferências</label>
+      <input id="transfers" name="transfers" type="number" min="1" value="{{or $j.Transfers 4}}">
+    </div>
+    <div class="f tune">
+      <label for="checkers">Verificações</label>
+      <input id="checkers" name="checkers" type="number" min="1" value="{{or $j.Checkers 8}}">
     </div>
 
-    <div class="f s-cron">
-      <label for="schedule">Cron</label>
-      <input id="schedule" name="schedule" value="{{$j.Schedule}}" placeholder="0 3 * * 1">
+    <div class="f files span-2">
+      <span class="lbl" id="tree-lbl">Pastas</span>
+      <ul class="tree" id="tree" aria-labelledby="tree-lbl"></ul>
     </div>
-
-    <div class="pair tune">
-      <div class="f"><label for="transfers">Transferências</label>
-      <input id="transfers" name="transfers" type="number" min="1" value="{{or $j.Transfers 4}}"></div>
-      <div class="f"><label for="checkers">Verificações</label>
-      <input id="checkers" name="checkers" type="number" min="1" value="{{or $j.Checkers 8}}"></div>
+    <div class="f files">
+      <label for="excludes">Exclusões</label>
+      <textarea id="excludes" name="excludes" rows="11" placeholder="/vzdump/**">{{$j.Excludes}}</textarea>
     </div>
 
     <div class="card-foot">
@@ -122,34 +120,51 @@
   </form>
 </section>
 
-<div class="span-5 stack">
 {{$vol := bars .Vol}}{{$dur := bars .Dur}}
-{{if or $vol $dur}}
-<div class="charts">
-  {{with $vol}}<section class="card"><div class="card-head"><h2>Volume por execução</h2></div>{{.}}</section>{{end}}
-  {{with $dur}}<section class="card"><div class="card-head"><h2>Duração</h2></div>{{.}}</section>{{end}}
-</div>
-{{end}}
+{{with $vol}}<section class="card span-6"><div class="card-head"><h2>Volume por execução</h2></div>{{.}}</section>{{end}}
+{{with $dur}}<section class="card span-6"><div class="card-head"><h2>Duração</h2></div>{{.}}</section>{{end}}
 
-{{if .Runs}}
-<section class="card">
-  <div class="card-head"><h2>Histórico</h2></div>
+{{if $j.ID}}
+<section class="card span-12" id="history">
+  <div class="card-head"><h2>Histórico</h2>{{with .Runs}}<span class="dim sm" id="hist-count"></span>{{end}}</div>
+  {{with .Runs}}
   <ul class="rows">
-  {{range .Runs}}
-    <li><a href="/runs/{{.ID}}" class="row">
-      {{template "status" .Status}}
-      <span class="nm">{{when .Started}}{{if .Dry}} <span class="tag">simulação</span>{{end}}</span>
-      <span class="dim hide-sm">{{dur .Started .Finished}}</span>
-      <span class="dim">{{if .Errors}}{{.Errors}} erros{{else if .Deletes}}{{.Files}} enviados, {{.Deletes}} apagados{{else}}{{.Files}} arquivos{{end}}</span>
-      <span class="val">{{bytes .Bytes}}</span>
+  {{range $i, $r := .}}
+    <li {{if ge $i 8}}hidden{{end}}><a href="/runs/{{$r.ID}}" class="row">
+      {{template "status" $r.Status}}
+      <span class="nm">{{when $r.Started}}{{if $r.Dry}} <span class="tag">simulação</span>{{end}}</span>
+      <span class="dim hide-sm">{{dur $r.Started $r.Finished}}</span>
+      <span class="dim">{{if $r.Msg}}{{$r.Msg}}{{else if $r.Errors}}{{$r.Errors}} erros{{else if $r.Deletes}}{{$r.Files}} enviados, {{$r.Deletes}} apagados{{else if $r.Files}}{{$r.Files}} arquivos{{end}}</span>
+      <span class="val">{{bytes $r.Bytes}}</span>
     </a></li>
   {{end}}
   </ul>
+  <div class="more"><button type="button" class="link" id="more">Mostrar mais</button></div>
+  {{else}}
+  <p class="dim sm">Nenhuma execução ainda.</p>
+  {{end}}
 </section>
 {{end}}
-{{if not .Runs}}<section class="card"><div class="card-head"><h2>Histórico</h2></div><p class="dim sm">Nenhuma execução ainda.</p></section>{{end}}
 </div>
-</div>
+
+<script>
+// Histórico: mostra 8 execuções e abre mais 10 a cada clique.
+(() => {
+  const items = [...document.querySelectorAll('#history .rows > li')], btn = document.getElementById('more'),
+        count = document.getElementById('hist-count');
+  if (!btn) return;
+  const sync = () => {
+    const shown = items.filter(li => !li.hidden).length;
+    count.textContent = shown + ' de ' + items.length;
+    btn.parentElement.hidden = shown === items.length;
+  };
+  btn.addEventListener('click', () => {
+    items.filter(li => li.hidden).slice(0, 10).forEach(li => { li.hidden = false; });
+    sync();
+  });
+  sync();
+})();
+</script>
 
 <script>
 // Árvore de pastas: desmarcar uma pasta adiciona "/caminho/**" às exclusões.

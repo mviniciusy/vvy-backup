@@ -1,24 +1,21 @@
 {{define "content"}}
-<h1 class="title">{{.Month}} <span class="dim">{{.Year}}</span></h1>
+<header class="status {{.Status.Level}}">
+  <h1 class="title">{{.Status.Title}}</h1>
+  <p class="status-sub">{{.Status.Sub}}</p>
+  {{with .Status.Rest}}
+  <ul class="issues">
+    {{range .}}<li class="{{.Level}}"><span class="ico {{if eq .Level "bad"}}bad{{else}}run{{end}}">{{template "icon" (or (and (eq .Level "bad") "x") "clock")}}</span><span>{{.Text}}</span>{{if .Link}} <a href="{{.Link}}">Ver</a>{{end}}</li>{{end}}
+  </ul>
+  {{end}}
+</header>
 <div class="dash">
-<div class="span-12 kpis">
+<section class="card strip span-12">
   {{range .KPIs}}
-  <section class="card kpi">
+  <div class="kpi">
     <p class="kpi-label">{{.Label}}</p>
     <p class="kpi-value">{{.Value}}</p>
     {{if .HasDelta}}<p class="kpi-delta {{if .Good}}good{{else}}bad{{end}}">{{.Delta}}</p>{{end}}
-  </section>
-  {{end}}
-</div>
-<section class="span-12 health {{if .Health}}has-issues{{end}}">
-  {{range .Health}}
-  <p class="issue {{.Level}}">
-    <span class="ico {{if eq .Level "bad"}}bad{{else}}run{{end}}">{{template "icon" (or (and (eq .Level "bad") "x") "clock")}}</span>
-    <span>{{.Text}}</span>
-    {{if .Link}}<a href="{{.Link}}" class="link">Ver</a>{{end}}
-  </p>
-  {{else}}
-  <p class="issue"><span class="ico ok">{{template "icon" "check"}}</span><span>Tudo em dia. Drive responde, HDs montados e nenhum job atrasado.</span></p>
+  </div>
   {{end}}
 </section>
 
@@ -33,7 +30,7 @@
   <canvas class="pixelbar" id="r-bar"></canvas>
 </section>
 
-<section class="card span-7 w-drive">
+<section class="card hero span-7 w-drive">
   <div class="card-head">
     <div>
       <p class="big"><span id="used">—</span> <span class="of" id="of"></span></p>

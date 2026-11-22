@@ -358,13 +358,12 @@ func (a *App) painel(w http.ResponseWriter, r *http.Request) {
 	}
 	drv := a.drive()
 	ss, labels := a.volumeSeries(jobs, 30)
-	now := time.Now()
 	render(w, "painel", "layout", map[string]any{"Rows": rows, "Running": running, "Nav": a.nav(0), "Crumb": "Painel",
-		"Month": months[now.Month()-1], "Year": now.Year(), "KPIs": a.kpis(a.lastDrive(), next),
+		"KPIs":  a.kpis(a.lastDrive(), next),
 		"Lines": lineChart(ss, labels), "Series": ss,
 		"Cfg": map[string]any{"drive": drv, "disks": disks, "running": running, "base": a.base,
 			"trashJob": trashID(trashJob), "trashAge": trashAge(trashJob)},
-		"Heat": heat, "HeatDays": heatDays, "Plan": plan, "Health": a.health(jobs), "Growth": a.growth()})
+		"Heat": heat, "HeatDays": heatDays, "Plan": plan, "Status": a.headline(a.health(jobs)), "Growth": a.growth()})
 }
 
 func (a *App) jobPage(w http.ResponseWriter, r *http.Request) {
@@ -380,11 +379,11 @@ func (a *App) jobPage(w http.ResponseWriter, r *http.Request) {
 			fail(w, err)
 			return
 		}
-		if hist, err = a.runs(`WHERE r.job_id=? ORDER BY r.started DESC LIMIT 50`, id); err != nil {
+		if hist, err = a.runs(`WHERE r.job_id=? ORDER BY r.started DESC LIMIT 200`, id); err != nil {
 			fail(w, err)
 			return
 		}
-		for i := len(hist) - 1; i >= 0; i-- {
+		for i := min(len(hist), 30) - 1; i >= 0; i-- { // gráficos: as 30 mais recentes
 			h := hist[i]
 			if h.Dry || h.Finished == 0 {
 				continue

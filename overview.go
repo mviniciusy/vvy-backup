@@ -179,8 +179,6 @@ func lineChart(ss []series, labels []string) template.HTML {
 	x := func(i int) float64 { return left + plotW*float64(i)/float64(len(labels)-1) }
 	var b strings.Builder
 	fmt.Fprintf(&b, `<svg class="lines" viewBox="0 0 %.0f %.0f" role="img" aria-label="Volume enviado e arquivos apagados por dia">`, w, mid+hDown+28)
-	b.WriteString(`<defs><filter id="glow" x="-5%" y="-30%" width="110%" height="160%"><feGaussianBlur stdDeviation="4" result="b"/>` +
-		`<feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>`)
 	// grade e eixo
 	for k := 0; k <= 4; k++ {
 		y := mid - hUp*float64(k)/4
@@ -214,9 +212,48 @@ func lineChart(ss []series, labels []string) template.HTML {
 		for d, v := range s.Up {
 			xs[d], ys[d] = x(d), mid-hUp*v/maxUp
 		}
-		fmt.Fprintf(&b, `<path d="%s" class="up" stroke="%s" filter="url(#glow)"><title>%s</title></path>`,
+		fmt.Fprintf(&b, `<path d="%s" class="up" stroke="%s"><title>%s</title></path>`,
 			smoothPath(xs, ys), s.Color, template.HTMLEscapeString(s.Name))
 	}
 	b.WriteString(`</svg>`)
 	return template.HTML(b.String())
+}
+
+// ---------- Título: o estado do backup ----------
+
+type status struct {
+	Level, Title, Sub string
+	Rest              []issue // avisos que não couberam no título
+}
+
+// headline responde "meus dados estão seguros?": o pior problema ou a cópia mais recente.
+func (a *App) headline(issues []issue) status {
+	for i, is := range issues {
+		if is.Level == "bad" {
+			rest := append(append([]issue{}, issues[:i]...), issues[i+1:]...)
+			return status{Level: "bad", Title: is.Text, Sub: "Corrija para voltar a ter cópias em dia.", Rest: rest}
+		}
+	}
+	s := status{Level: "ok", Rest: issues}
+	rs, err := a.runs(`WHERE r.dry=0 AND r.status='ok' ORDER BY r.started DESC LIMIT 1`)
+	if err != nil || len(rs) == 0 {
+		s.Title, s.Sub = "Nenhuma cópia registrada ainda.", "Rode um job ou espere o próximo agendamento."
+		return s
+	}
+	s.Title = "Tudo copiado."
+	s.Sub = "Última cópia " + ago(time.Since(time.Unix(rs[0].Started, 0))) + ", " + rs[0].JobName + "."
+	if len(issues) > 0 {
+		s.Level, s.Title = "warn", "Cópias em dia, com avisos."
+	}
+	return s
+}
+
+func ago(d time.Duration) string {
+	switch {
+	case d < time.Hour:
+		return fmt.Sprintf("há %d min", int(d.Minutes()))
+	case d < 48*time.Hour:
+		return fmt.Sprintf("há %d h", int(d.Hours()))
+	}
+	return fmt.Sprintf("há %d dias", int(d.Hours()/24))
 }
