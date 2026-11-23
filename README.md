@@ -26,7 +26,7 @@ as dependências são `modernc.org/sqlite` e `robfig/cron`. A interface não usa
 
 ## Telas
 
-**Painel principal — resumo do mês, cota do Google Drive e HDs locais**
+**Painel principal, resumo do mês, cota do Google Drive e HDs locais**
 
 ![Painel principal com KPIs do mês, barra de cota do Google Drive e HDs locais](imagens/web1.png)
 
@@ -91,4 +91,4 @@ em `/root/.config/vvy-backup.env`. Se o painel estiver indisponível, o script �
 
 ## Repositório relacionado
 
-- [vvy-homelab](https://github.com/mviniciusy/vvy-homelab) — infraestrutura do servidor Proxmox, storage, rede e documentação dos scripts de backup do host ([`docs/backup.md`](https://github.com/mviniciusy/vvy-homelab/blob/main/docs/backup.md)).
+- [vvy-homelab](https://github.com/mviniciusy/vvy-homelab), infraestrutura do servidor Proxmox, storage, rede e documentação dos scripts de backup do host ([`docs/backup.md`](https://github.com/mviniciusy/vvy-homelab/blob/main/docs/backup.md)).
